@@ -335,8 +335,8 @@ class Agent():
     def  __init__(self,equip_slots=5):
         self.id = self.ID_UNKNOWN
         self.equip_list = [self.EQUIP_UNKNOWN for i in range(equip_slots)]
-        self.position_history=[]
-        self.turn_history=[]
+        self.position_history=[BoardPosition.from_string('N1')] # history[i] is where the agent ended turn i
+        self.turn_history=[[BoardPosition.from_string('N1')]]] # history[i] is the list of positions for turn i
 
     def __str__(self):
         retv='id: '
