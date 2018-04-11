@@ -20,6 +20,7 @@ DTURN=(TURNS_ROW[1]-TURNS_ROW[0])/N_TURNS
 PROB_RECT_OFFSET=2
 
 NUM_MOVES_PER_TURN=4
+NUM_MOVES_PER_TURN_RUSH=6
 MOTION_DETECT_MOVES=3
 SNIFF_RANGE=4
 GRENADE_RANGE=4
@@ -319,7 +320,6 @@ class Board():
             print()
 
 
-# TODO: create an Agent class for easier history management and to keep track of equipment
 class Agent():
     EQUIP_UNKNOWN=-1
     EQUIP_UNIQUE=0
@@ -336,7 +336,10 @@ class Agent():
         self.id = self.ID_UNKNOWN
         self.equip_list = [self.EQUIP_UNKNOWN for i in range(equip_slots)]
         self.position_history=[BoardPosition.from_string('N1')] # history[i] is where the agent ended turn i
-        self.turn_history=[[BoardPosition.from_string('N1')]]] # history[i] is the list of positions for turn i
+        self.turn_history=[[BoardPosition.from_string('N1')]] # history[i] is the list of positions for turn i
+                                                              # INVARIANT:
+                                                              #   turn_history[i][0] == position_history[i-1]
+                                                              #   turn_history[i][-1] == position_history[i]
 
     def __str__(self):
         retv='id: '
@@ -371,23 +374,44 @@ class Agent():
         self.turn_history.append(turn)
         self.position_history.append(turn[-1])
 
-    def get_last_turn(self):
-        return self.turn_history[-1]
+    def get_turn(self,idx=-1):
+        return self.turn_history[idx]
 
-    def get_position(self):
-        return self.position_history[-1]
+    def get_position(self,idx=-1):
+        return self.position_history[idx]
 
-    def num_known_equip(self):
-        try:
-            index=self.equip_list.index(self.EQUIP_UNKNOWN)
-        except:
-            index=len(self.equip_list)
-        return index
+    def num_equip(self,e=EQUIP_UNKNOWN):
+        index = [i for i in range(len(self.equip_list)) if self.equip_list[i] == e]
+        return len(index)
 
-    def set_equip(self,equip):
-        index = self.num_known_equip()
-        if index < len(self.equip_list):
-            self.equip_list[index]=equip
+    def set_equip(self,e):
+        # determine where the equipment should go
+        index = len(self.equip_list) - self.num_equip(Agent.EQUIP_UNKNOWN)
+        # if there's space, and if we're not maxed on this equippment
+        if index < len(self.equip_list) and self.num_equip_possible(e) > 0:
+            self.equip_list[index] = e
+
+    def has_unknown_equip(self):
+        return self.num_equip(Agent.EQUIP_UNKNOWN) > 0
+
+    # return the number of possible unknown equipment cards of a given type an agent might have
+    # for example, an agent known to have played "stealth field" with three remaining unknown
+    #  equipments can only possibly have one more stealth field
+    # or, an agent cannot have any more smoke grenades if all equipment has been identified
+    def num_equip_possible(self,e):
+        if e == Agent.EQUIP_UNKNOWN:
+            return 0 # this isn't a real equipment type
+        else:
+            # determine known equipment of the given type
+            index = [i for i in range(len(self.equip_list)) if self.equip_list[i] == e]
+            # for most equipment, the max number possible is 2
+            max_num = 2
+            if e == Agent.EQUIP_UNIQUE:
+                # there can only be one unique equipment card
+                max_num = 1
+            # number of slots is smaller of total open and open of this equip type
+            return min(max_num - len(index), self.num_equip(Agent.EQUIP_UNKNOWN))
+
 
 def print_moves(new_moves):
     for idx,p in enumerate(new_moves):
@@ -400,7 +424,7 @@ def print_moves(new_moves):
             print('-',end='')
 
 def print_moves_list(moves_list):
-    for l in range(0,NUM_MOVES_PER_TURN+1):
+    for l in range(0, len(moves_list)):
         print('length %d:' % l)
         for m in moves_list[l]:
             print_moves(m)
@@ -420,7 +444,7 @@ class Sim():
         # self.agent_list[i] is the turn history for agent i
         # self.agent_list[i][j] is the move sequence for agent i's turn j
         # self.agent_list[i][j][k] is the kth position of agent i's jth turn
-        self.agent_list=[[[BoardPosition.from_string('N1')]]]
+        self.agent_list=[Agent()]
         self.mission_pos=[]
 
         if out_file is not None:
@@ -477,6 +501,7 @@ class Sim():
             self.board.clear_smoke()
             print('cleared smoke')
 
+        # TODO: need to handle differing equipments when trimming
         # we don't actually care about detailed history once the hunter turn is over.
         # therefore, before propagating we can ignore any differences in how agents moved
         # between end turn locations and collapse those that have the same end history
@@ -487,22 +512,25 @@ class Sim():
         trimmed_agents=[]
         for agent in self.agent_list:
             try:
-                end_list.index(agent[-1][-1])
+                end_list.index(agent.get_position())
             except:
                 trimmed_agents.append(agent)
-                end_list.append(agent[-1][-1])
+                end_list.append(agent.get_position())
         print('trimmed %d -> %d' % (len(self.agent_list), len(trimmed_agents)))
 
         new_agents=[]
         # we're going to propagate every tracked agent to all the places they could go, each becoming a new agent
         for agent in trimmed_agents:
             # propagation starts at the last position in their history
-            start_pos = agent[-1][-1]
+            start_pos = agent.get_position()
             # we'll have a list for each possible move sequence length
             # length 0 consists of staying put
             n_moves_list = [[[start_pos]]]
-            # TODO: num moves can depend on if the agent plays "adrenaline rush"
-            for l in range(1, NUM_MOVES_PER_TURN+1):
+            # num moves can depend on if the agent plays "adrenaline rush"
+            max_num_moves = NUM_MOVES_PER_TURN
+            if agent.num_equip_possible(Agent.EQUIP_RUSH) > 0:
+                max_num_moves = NUM_MOVES_PER_TURN_RUSH
+            for l in range(1, max_num_moves+1):
                 # initialize the list for this sequence length
                 n_moves_list.append([])
                 # we take every sequence from the previous length and expand by one move
@@ -516,8 +544,13 @@ class Sim():
                         n_moves_list[l].append(new_moves)
             # now, all these new moves turn into agent particles with the same shared history
             for m in range(0, len(n_moves_list)):
-                for a in n_moves_list[m]:
-                    new_agents.append(agent + [a])
+                for t in n_moves_list[m]:
+                    new_agent = Agent()
+                    new_agent.clone(agent)
+                    new_agent.add_turn(t)
+                    if len(t) > NUM_MOVES_PER_TURN+1:
+                        new_agent.set_equip(Agent.EQUIP_RUSH)
+                    new_agents.append(new_agent)
         self.agent_list = new_agents
 
     # ap is the location the agent was spotted (empty if not spotted)
@@ -530,7 +563,7 @@ class Sim():
             print('spotted from %s at %s' % (str(hp), str(ap)))
             # kepp all agents at ap
             for a in self.agent_list:
-                if a[-1][-1] == ap:
+                if a.get_position() == ap:
                     new_list.append(a)
         else:
             print('not in LOS from %s' % str(hp))
@@ -538,7 +571,7 @@ class Sim():
             los = self.board.hunter_los(hp)
             for a in self.agent_list:
                 try:
-                    los.index(a[-1][-1])
+                    los.index(a.get_position())
                 except:
                     new_list.append(a)
         self.agent_list = new_list
@@ -557,7 +590,7 @@ class Sim():
             # keep agents that passed through ap and didn't end in ap and weren't
             #  visible through a later LOS
             for a in self.agent_list:
-                idx = [i for i,v in enumerate(a[-1][:-1]) if v == ap]
+                idx = [i for i,v in enumerate(a.get_turn()[:-1]) if v == ap]
                 if len(idx) == 0:
                     # ap isn't in agent's history, so they couldn't have been spotted
                     continue
@@ -565,7 +598,7 @@ class Sim():
                 #  are in the hunter LOS
                 idx = idx[-1]
                 later_los=False
-                for p in a[-1][idx+1:]:
+                for p in a.get_turn()[idx+1:]:
                     try:
                         los.index(p)
                     except:
@@ -581,7 +614,7 @@ class Sim():
             # keep agents that didn't cross LOS
             for a in self.agent_list:
                 in_los=False
-                for p in a[-1]:
+                for p in a.get_turn():
                     try:
                         los.index(p)
                     except:
@@ -608,8 +641,9 @@ class Sim():
         else:
             adj = self.board.adjacent(mp,dist=2, only_passable=True)
         for a in self.agent_list:
+            # try looking for where they started their turn in the positions next to the objective
             try:
-                adj.index(a[-1][0])
+                adj.index(a.get_turn()[0])
             except:
                 pass
             else:
@@ -626,7 +660,7 @@ class Sim():
             print('no motion')
             # keep all agents whose last turn pos list length is less than motion detect thresh
             for a in self.agent_list:
-                if len(a[-1]) < MOTION_DETECT_MOVES + 1:
+                if len(a.get_turn()) < MOTION_DETECT_MOVES + 1:
                     new_list.append(a)
         else:
             print('motion to the %s of %s' % (d, str(cp)))
@@ -634,43 +668,43 @@ class Sim():
             #   is greater than motion detect thresh
             if d == 'E':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.row == cp.row and ap.col > cp.col and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.row == cp.row and ap.col > cp.col and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'NE':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.row < cp.row and ap.col > cp.col and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.row < cp.row and ap.col > cp.col and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'N':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.col == cp.col and ap.row < cp.row and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.col == cp.col and ap.row < cp.row and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'NW':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.row < cp.row and ap.col < cp.col and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.row < cp.row and ap.col < cp.col and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'W':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.row == cp.row and ap.col < cp.col and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.row == cp.row and ap.col < cp.col and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'SW':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.row > cp.row and ap.col < cp.col and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.row > cp.row and ap.col < cp.col and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'S':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.col == cp.col and ap.row > cp.row and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.col == cp.col and ap.row > cp.row and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             elif d == 'SE':
                 for a in self.agent_list:
-                    ap = a[-1][-1]
-                    if ap.row > cp.row and ap.col > cp.col and len(a[-1]) >= MOTION_DETECT_MOVES + 1:
+                    ap = a.get_position()
+                    if ap.row > cp.row and ap.col > cp.col and len(a.get_turn()) >= MOTION_DETECT_MOVES + 1:
                         new_list.append(a)
             else:
                 pass
@@ -686,14 +720,14 @@ class Sim():
             print('sniffed near %s' % str(hp))
             # keep all agents within 4 spaces of hp
             for a in self.agent_list:
-                ap = a[-1][-1]
+                ap = a.get_position()
                 if abs(ap.row - hp.row) <= SNIFF_RANGE and abs(ap.col - hp.col) <= SNIFF_RANGE:
                     new_list.append(a)
         else:
             print('not sniffed near %s' % str(hp))
             # keep all agents not within 4 spaces of hp
             for a in self.agent_list:
-                ap = a[-1][-1]
+                ap = a.get_position()
                 if abs(ap.row - hp.row) > SNIFF_RANGE or abs(ap.col - hp.col) > SNIFF_RANGE:
                     new_list.append(a)
         self.agent_list = new_list
@@ -708,9 +742,9 @@ class Sim():
             # if agent is known to not be bluejay, agent must have ended within one space of the objective
             # otherwise, they could have ended within two spaces
             if self.agent_id == self.AGENT_OTHER:
-                adj = self.board.adjacent(a[-1][-1])
+                adj = self.board.adjacent(a.get_position())
             else:
-                adj = self.board.adjacent(a[-1][-1], dist=2)
+                adj = self.board.adjacent(a.get_position(), dist=2)
             for p in adj:
                 if self.board.is_objective(p):
                     new_list.append(a)
@@ -724,8 +758,8 @@ class Sim():
         new_list=[]
         # only keep agents who were at ap two turns ago
         for a in self.agent_list:
-            print('%s vs %s' % (a[-3][-1], ap))
-            if a[-3][-1] == ap:
+            print('%s vs %s' % (a.get_turn(-3)[-1], ap))
+            if a.get_turn(-3)[-1] == ap:
                 new_list.append(a)
         self.agent_list = new_list
 
@@ -1023,7 +1057,7 @@ class MainWindow(tk.Frame):
         prob_board = Board(init_empty = True)
         num_agent = len(self.sim.agent_list)
         for agent in self.sim.agent_list:
-            pos = agent[-1][-1]
+            pos = agent.get_position()
             tmp = prob_board.get(pos)
             prob_board.set(pos, tmp + 1.0 / num_agent)
         for r in range(0,N_ROWS):
@@ -1070,7 +1104,7 @@ class MainWindow(tk.Frame):
 
         for i in self.inspect_path:
             self.canvas.delete(i)
-        for i,h in enumerate(self.sim.agent_list[index]):
+        for i,h in enumerate(self.sim.agent_list[index].turn_history):
             for j,p in enumerate(h):
                 this_p=p.screen_pos()
                 if j == len(h)-1:
