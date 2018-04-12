@@ -45,7 +45,7 @@ class BoardPosition():
             c = ord(index[0].upper()) - FIRST_COL
             # handle if direction is specified in string
             try:
-                d = self.D_LOOKUP.index(index[-1].upper())
+                d = BoardPosition.D_LOOKUP.index(index[-1].upper())
             except:
                 d = -1
                 r = int(index[1:]) - FIRST_ROW
@@ -323,15 +323,15 @@ class Board():
 # TODO: need a way to flip HIDDEN to RUSH or STEALTH
 class Agent():
     EQUIP_UNKNOWN=-1
-    EQUIP_UNIQUE=0
+    EQUIP_HIDDEN=0
     EQUIP_RUSH=1
     EQUIP_STEALTH=2
     EQUIP_FLASH=3
     EQUIP_SMOKE=4
-    EQUIP_HIDDEN=5
+    EQUIP_UNIQUE=5
 
     def  __init__(self,equip_slots=5):
-        self.equip_list = [self.EQUIP_UNKNOWN for i in range(equip_slots)]
+        self.equip_list = [self.EQUIP_UNKNOWN for i in range(equip_slots)] # INVARIANT: list[i] >= list[j] for i <= j
         self.position_history=[BoardPosition.from_string('N1')] # history[i] is where the agent ended turn i
         self.turn_history=[[BoardPosition.from_string('N1')]] # history[i] is the list of positions for turn i
                                                               # INVARIANT:
@@ -385,11 +385,13 @@ class Agent():
         return len(index)
 
     def set_equip(self,e):
-        # determine where the equipment should go
+        # determine where the equipment should go, i.e. the first UNKNOWN spot
         index = len(self.equip_list) - self.num_equip(Agent.EQUIP_UNKNOWN)
         # if there's space, and if we're not maxed on this equippment
         if index < len(self.equip_list) and self.num_equip_possible(e) > 0:
             self.equip_list[index] = e
+        # keep the list in proper order
+        self.equip_list.sort()
 
     def has_unknown_equip(self):
         return self.num_equip(Agent.EQUIP_UNKNOWN) > 0
@@ -472,7 +474,7 @@ class Sim():
                 cp=BoardPosition.from_string(t[1])
                 self.motion_obs(cp, t[2])
             elif t[0] == 'sniffed':
-                hp=BoardPosition.from_stringset(t[1])
+                hp=BoardPosition.from_string(t[1])
                 self.sniffed_obs(hp, t[2] == 'True')
             elif t[0] == 'precog':
                 self.precog_obs()
@@ -481,7 +483,7 @@ class Sim():
                 self.postcog_obs(ap)
             elif t[0] == 'flash':
                 gp=BoardPosition.from_string(t[1])
-                self.__grenade_obs(gp, Agent.EQUIP_FLASH)
+                self.__equip_grenade_obs(gp, Agent.EQUIP_FLASH)
             elif t[0] == 'smoke':
                 gp=BoardPosition.from_string(t[1])
                 self.__equip_grenade_obs(gp, Agent.EQUIP_SMOKE)
@@ -507,21 +509,23 @@ class Sim():
         if self.equip_used == 2:
             self.equip_used = 0
 
-        # TODO: need to handle differing equipments when trimming
         # we don't actually care about detailed history once the hunter turn is over.
         # therefore, before propagating we can ignore any differences in how agents moved
-        # between end turn locations and collapse those that have the same end history
+        # between end turn locations and collapse those that have the same end history and
+        # equipment lists
         #
         # as long as all observations are processed, all remaining paths are equally likely
-        # for simplicity we keep the history of the first agent to reach a given position
-        end_list=[]
+        # for simplicity we keep the history of the first agent to reach a given position with
+        # a given set of equipment
+        unique_list=[]
         trimmed_agents=[]
         for agent in self.agent_list:
+            u = [agent.get_position(), agent.equip_list]
             try:
-                end_list.index(agent.get_position())
+                unique_list.index(u)
             except:
                 trimmed_agents.append(agent)
-                end_list.append(agent.get_position())
+                unique_list.append(u)
         print('trimmed %d -> %d' % (len(self.agent_list), len(trimmed_agents)))
 
         new_agents=[]
@@ -774,11 +778,11 @@ class Sim():
         self.agent_list = new_list
 
     def __equip_grenade_obs(self, gp, g_type):
-        if g_type == self.GRENADE_FLASH:
+        if g_type == Agent.EQUIP_FLASH:
             if self.fdo is not None:
                 self.fdo.write('flash %s\n' % (gp))
             print('flash grenade at %s' % str(gp))
-        elif g_type == self.GRENADE_SMOKE:
+        elif g_type == Agent.EQUIP_SMOKE:
             if self.fdo is not None:
                 self.fdo.write('smoke %s\n' % (gp))
             print('smoke grenade at %s' % str(gp))
@@ -831,12 +835,12 @@ class Sim():
 
     def bluejay_obs(self, is_bluejay):
         if self.fdo is not None:
-            self.fdo.write('bluejay %s' % ('True' if is_bluejay else 'False'))
+            self.fdo.write('bluejay %s\n' % ('True' if is_bluejay else 'False'))
         if is_bluejay:
             print('id: bluejay')
             self.agent_id = self.AGENT_BLUEJAY
         else:
-            print('id: not  bluejay')
+            print('id: not bluejay')
             self.agent_id = self.AGENT_OTHER
 
 
@@ -1025,7 +1029,7 @@ class MainWindow(tk.Frame):
             return self.tooltip_text(text)
         def mission_button_ttp(event, self=self, text='If an agent completes a mission objective, enter the objective location in the agent pos entry box and click this button.'):
             return self.tooltip_text(text)
-        def grenade_button_ttp(event, self=self, text='If the agent plays a grenade, enter the grenade location in the agent pos entry box, and click the grenade type button immediately after propagation and before any other observations are made.\n\nA smoke grenade is cleared on the next propagation.\n\nDo not provide positive or negative visual observations for flash blinded hunters.'):
+        def grenade_button_ttp(event, self=self, text='If the agent plays a grenade, enter the grenade location in the agent pos entry box, and click the grenade type button immediately after propagation and before any other observations are made.\n\nA smoke grenade is cleared on the next propagation.\n\nProvide only spotted (not last seen) positive or negative observations for flash blinded hunters.'):
             return self.tooltip_text(text)
         def unique_equip_button_ttp(event, self=self, text='Click if the agent plays their role-specific equipment card.'):
             return self.tooltip_text(text)
