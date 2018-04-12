@@ -320,6 +320,7 @@ class Board():
             print()
 
 
+# TODO: need a way to flip HIDDEN to RUSH or STEALTH
 class Agent():
     EQUIP_UNKNOWN=-1
     EQUIP_UNIQUE=0
@@ -329,12 +330,7 @@ class Agent():
     EQUIP_SMOKE=4
     EQUIP_HIDDEN=5
 
-    ID_UNKNOWN=-1
-    ID_OTHER=0
-    ID_BLUEJAY=1
-
     def  __init__(self,equip_slots=5):
-        self.id = self.ID_UNKNOWN
         self.equip_list = [self.EQUIP_UNKNOWN for i in range(equip_slots)]
         self.position_history=[BoardPosition.from_string('N1')] # history[i] is where the agent ended turn i
         self.turn_history=[[BoardPosition.from_string('N1')]] # history[i] is the list of positions for turn i
@@ -345,8 +341,6 @@ class Agent():
     def __str__(self):
         retv='id: '
 
-        retv += 'bluejay' if self.id == Agent.ID_BLUEJAY else (
-                'other'   if self.id == Agent.ID_OTHER else 'unknown')
         retv += '\nequipment:'
         for e in self.equip_list:
             retv += ' unknown' if e == Agent.EQUIP_UNKNOWN else (
@@ -367,7 +361,6 @@ class Agent():
         return retv
 
     def clone(self,other):
-        self.id = other.id
         self.equip_list = [e for e in other.equip_list]
         self.position_history = [BoardPosition.clone(p) for p in other.position_history]
         self.turn_history = [[BoardPosition.clone(p) for p in h] for h in other.turn_history]
@@ -384,6 +377,11 @@ class Agent():
 
     def num_equip(self,e=EQUIP_UNKNOWN):
         index = [i for i in range(len(self.equip_list)) if self.equip_list[i] == e]
+        if e==Agent.EQUIP_HIDDEN:
+            index2 = [i for i in range(len(self.equip_list)) if self.equip_list[i] == Agent.EQUIP_RUSH]
+            index.append(index2)
+            index2 = [i for i in range(len(self.equip_list)) if self.equip_list[i] == Agent.EQUIP_STEALTH]
+            index.append(index2)
         return len(index)
 
     def set_equip(self,e):
@@ -405,14 +403,15 @@ class Agent():
             return 0 # this isn't a real equipment type
         else:
             # determine known equipment of the given type
-            index = [i for i in range(len(self.equip_list)) if self.equip_list[i] == e]
-            # for most equipment, the max number possible is 2
+            cnt = self.num_equip(e)
             max_num = 2
             if e == Agent.EQUIP_UNIQUE:
                 # there can only be one unique equipment card
                 max_num = 1
+            elif e == Agent.EQUIP_HIDDEN:
+                max_num = 4
             # number of slots is smaller of total open and open of this equip type
-            return min(max_num - len(index), self.num_equip(Agent.EQUIP_UNKNOWN))
+            return min(max_num - cnt, self.num_equip(Agent.EQUIP_UNKNOWN))
 
 
 def print_moves(new_moves):
@@ -433,9 +432,6 @@ def print_moves_list(moves_list):
 
 
 class Sim():
-    GRENADE_FLASH=0
-    GRENADE_SMOKE=1
-
     AGENT_UNKNOWN=-1
     AGENT_OTHER=0
     AGENT_BLUEJAY=1
@@ -443,6 +439,7 @@ class Sim():
     def __init__(self, in_file=None, out_file=None):
         self.board = Board()
         self.agent_id = self.AGENT_UNKNOWN
+        self.equip_used = 0 # 0: none, 1: apply this propagation, 2: apply during obs and cancel at next prop
         # self.agent_list[i] is the turn history for agent i
         # self.agent_list[i][j] is the move sequence for agent i's turn j
         # self.agent_list[i][j][k] is the kth position of agent i's jth turn
@@ -484,10 +481,14 @@ class Sim():
                 self.postcog_obs(ap)
             elif t[0] == 'flash':
                 gp=BoardPosition.from_string(t[1])
-                self.flash_grenade_obs(gp)
+                self.__grenade_obs(gp, Agent.EQUIP_FLASH)
             elif t[0] == 'smoke':
                 gp=BoardPosition.from_string(t[1])
-                self.smoke_grenade_obs(gp)
+                self.__equip_grenade_obs(gp, Agent.EQUIP_SMOKE)
+            elif t[0] == 'unique':
+                self.__equip_unique_obs()
+            elif t[0] == 'hidden':
+                self.__equip_hidden_obs()
             elif t[0] == 'bluejay':
                 self.bluejay_obs(t[1] == 'True')
             else:
@@ -502,6 +503,9 @@ class Sim():
         if self.board.smokep is not None:
             self.board.clear_smoke()
             print('cleared smoke')
+
+        if self.equip_used == 2:
+            self.equip_used = 0
 
         # TODO: need to handle differing equipments when trimming
         # we don't actually care about detailed history once the hunter turn is over.
@@ -530,8 +534,8 @@ class Sim():
             n_moves_list = [[[start_pos]]]
             # num moves can depend on if the agent plays "adrenaline rush"
             max_num_moves = NUM_MOVES_PER_TURN
-            #if agent.num_equip_possible(Agent.EQUIP_RUSH) > 0:
-            #    max_num_moves = NUM_MOVES_PER_TURN_RUSH
+            if self.equip_used == 1 and agent.num_equip_possible(Agent.EQUIP_RUSH) > 0:
+                max_num_moves = NUM_MOVES_PER_TURN_RUSH
             for l in range(1, max_num_moves+1):
                 # initialize the list for this sequence length
                 n_moves_list.append([])
@@ -554,6 +558,9 @@ class Sim():
                         new_agent.set_equip(Agent.EQUIP_RUSH)
                     new_agents.append(new_agent)
         self.agent_list = new_agents
+
+        if self.equip_used == 1:
+            self.equip_used = 2
 
     # ap is the location the agent was spotted (empty if not spotted)
     # hp is the location of the observant hunter
@@ -583,9 +590,9 @@ class Sim():
     def last_seen_obs(self, ap, hp):
         if self.fdo is not None:
             self.fdo.write('last_seen %s %s\n' % (str(ap), str(hp)))
-        # TODO: need to consider if agent played "stealth field"
         new_list=[]
         los = self.board.hunter_los(hp)
+        # TODO: need to consider if agent played "stealth field"
         # TODO: need to handle if bluejay's "holo decoy" was used
         if self.board.contains(ap):
             print('last seen from %s at %s' % (str(hp), str(ap)))
@@ -766,8 +773,7 @@ class Sim():
                 new_list.append(a)
         self.agent_list = new_list
 
-    # TODO: note in Agent that a grenade was used
-    def grenade_obs(self, gp, g_type):
+    def __equip_grenade_obs(self, gp, g_type):
         if g_type == self.GRENADE_FLASH:
             if self.fdo is not None:
                 self.fdo.write('flash %s\n' % (gp))
@@ -778,16 +784,51 @@ class Sim():
             print('smoke grenade at %s' % str(gp))
             self.board.place_smoke(gp)
         new_list=[]
-        # only keep agents that were within 4 spaces of the grenade location
-        #  at any point during their last turn
+        # only keep agents that have an unused equipment slot, and were within
+        #  4 spaces of the grenade location at any point during their last turn
+        # also, note the equipment
         for a in self.agent_list:
-            for p in a.get_turn():
-                if abs(p.row - gp.row) <= GRENADE_RANGE and abs(p.col - gp.col) <= GRENADE_RANGE:
-                    new_list.append(a)
-                    break
+            if a.num_equip_possible(g_type) > 0:
+                for p in a.get_turn():
+                    if abs(p.row - gp.row) <= GRENADE_RANGE and abs(p.col - gp.col) <= GRENADE_RANGE:
+                        a.set_equip(g_type)
+                        new_list.append(a)
+                        break
         self.agent_list = new_list
 
-    # TODO: log this with the agents
+    def __equip_unique_obs(self):
+        if self.fdo is not None:
+            self.fdo.write('unique\n')
+        print('agent\'s unique equipment used')
+        # keep agents that have an unused equipment slot and note the unique equipment
+        new_list=[]
+        for a in self.agent_list:
+            if a.num_equip_possible(Agent.EQUIP_UNIQUE) > 0:
+                a.set_equip(Agent.EQUIP_UNIQUE)
+                new_list.append(a)
+        self.agent_list = new_list
+
+    def __equip_hidden_obs(self):
+        if self.fdo is not None:
+            self.fdo.write('hidden\n')
+        print('hidden equipment used')
+        self.equip_used = 1
+        # keep agents that have an unused equipment slot and note the hidden equipment
+        new_list=[]
+        for a in self.agent_list:
+            if a.num_equip_possible(Agent.EQUIP_HIDDEN) > 0:
+                a.set_equip(Agent.EQUIP_HIDDEN)
+                new_list.append(a)
+        self.agent_list = new_list
+
+    def equip_obs(self, ep, e_type):
+        if e_type == Agent.EQUIP_FLASH or e_type == Agent.EQUIP_SMOKE:
+            self.__equip_grenade_obs(ep, e_type)
+        elif e_type == Agent.EQUIP_UNIQUE:
+            self.__equip_unique_obs()
+        else:
+            self.__equip_hidden_obs()
+
     def bluejay_obs(self, is_bluejay):
         if self.fdo is not None:
             self.fdo.write('bluejay %s' % ('True' if is_bluejay else 'False'))
@@ -858,14 +899,23 @@ class MainWindow(tk.Frame):
         self.mission_button.grid(column=1, row=entry_row, columnspan=2)
         entry_row += 1
 
-        def flash_grenade_click(self=self, g_type=self.sim.GRENADE_FLASH):
-            return self.on_grenade_click(g_type)
-        def smoke_grenade_click(self=self, g_type=self.sim.GRENADE_SMOKE):
-            return self.on_grenade_click(g_type)
+        def flash_grenade_click(self=self, e_type=Agent.EQUIP_FLASH):
+            return self.on_equip_click(e_type)
+        def smoke_grenade_click(self=self, e_type=Agent.EQUIP_SMOKE):
+            return self.on_equip_click(e_type)
+        def unique_equip_click(self=self, e_type=Agent.EQUIP_UNIQUE):
+            return self.on_equip_click(e_type)
+        def hidden_equip_click(self=self, e_type=Agent.EQUIP_HIDDEN):
+            return self.on_equip_click(e_type)
         self.flash_grenade_button = tk.Button(self, text="Flash grenade", command=flash_grenade_click)
         self.flash_grenade_button.grid(column=1, row=entry_row)
         self.smoke_grenade_button = tk.Button(self, text="Smoke grenade", command=smoke_grenade_click)
         self.smoke_grenade_button.grid(column=2, row=entry_row)
+        entry_row += 1
+        self.unique_equip_button = tk.Button(self, text="Unique equipment", command=unique_equip_click)
+        self.unique_equip_button.grid(column=1, row=entry_row)
+        self.hidden_equip_button = tk.Button(self, text="Hidden equipment", command=hidden_equip_click)
+        self.hidden_equip_button.grid(column=2, row=entry_row)
         entry_row += 1
 
         sub_frame = tk.Frame(self)
@@ -977,6 +1027,10 @@ class MainWindow(tk.Frame):
             return self.tooltip_text(text)
         def grenade_button_ttp(event, self=self, text='If the agent plays a grenade, enter the grenade location in the agent pos entry box, and click the grenade type button immediately after propagation and before any other observations are made.\n\nA smoke grenade is cleared on the next propagation.\n\nDo not provide positive or negative visual observations for flash blinded hunters.'):
             return self.tooltip_text(text)
+        def unique_equip_button_ttp(event, self=self, text='Click if the agent plays their role-specific equipment card.'):
+            return self.tooltip_text(text)
+        def hidden_equip_button_ttp(event, self=self, text='Click if the agent plays non-reveal equipment during their turn. Be sure to do this before clicking Propagate!'):
+            return self.tooltip_text(text)
         def motion_button_ttp(event, self=self, text='If the vehicle\'s motion sensor was used, click the direction the agent was detected, or click No Motion if the agent was not detected.'):
             return self.tooltip_text(text)
         def sniffed_button_ttp(event, self=self, text='If the Beast\'s enhanced senses were used, enter the hunter location in the hunter pos entry box, and click the true/false button depending on if the agent was sensed or not.'):
@@ -1001,6 +1055,8 @@ class MainWindow(tk.Frame):
         self.last_seen_button.bind(    '<Enter>', last_seen_button_ttp)
         self.flash_grenade_button.bind('<Enter>', grenade_button_ttp)
         self.smoke_grenade_button.bind('<Enter>', grenade_button_ttp)
+        self.unique_equip_button.bind( '<Enter>', unique_equip_button_ttp)
+        self.hidden_equip_button.bind( '<Enter>', hidden_equip_button_ttp)
         self.mission_button.bind(      '<Enter>', mission_button_ttp)
         self.motion_nw_button.bind(    '<Enter>', motion_button_ttp)
         self.motion_n_button.bind(     '<Enter>', motion_button_ttp)
@@ -1028,6 +1084,8 @@ class MainWindow(tk.Frame):
         self.last_seen_button.bind(    '<Leave>', ttp_clear)
         self.flash_grenade_button.bind('<Leave>', ttp_clear)
         self.smoke_grenade_button.bind('<Leave>', ttp_clear)
+        self.unique_equip_button.bind( '<Leave>', ttp_clear)
+        self.hidden_equip_button.bind( '<Leave>', ttp_clear)
         self.mission_button.bind(      '<Leave>', ttp_clear)
         self.motion_nw_button.bind(    '<Leave>', ttp_clear)
         self.motion_n_button.bind(     '<Leave>', ttp_clear)
@@ -1168,9 +1226,9 @@ class MainWindow(tk.Frame):
         self.sim.postcog_obs(ap)
         self.draw_probability()
 
-    def on_grenade_click(self, g_type):
+    def on_equip_click(self, g_type):
         ap=BoardPosition.from_string(self.agent_pos_entry_text.get())
-        self.sim.grenade_obs(ap, g_type)
+        self.sim.equip_obs(ap, g_type)
         self.draw_probability()
 
     def on_bluejay_click(self, res):
