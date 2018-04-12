@@ -476,6 +476,9 @@ class Sim():
             elif t[0] == 'sniffed':
                 hp=BoardPosition.from_string(t[1])
                 self.sniffed_obs(hp, t[2] == 'True')
+            elif t[0] == 'mission':
+                mp=BoardPosition.from_string(t[1])
+                self.mission_obs(mp)
             elif t[0] == 'precog':
                 self.precog_obs()
             elif t[0] == 'postcog':
