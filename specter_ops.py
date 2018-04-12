@@ -327,6 +327,7 @@ class Agent():
     EQUIP_STEALTH=2
     EQUIP_FLASH=3
     EQUIP_SMOKE=4
+    EQUIP_HIDDEN=5
 
     ID_UNKNOWN=-1
     ID_OTHER=0
@@ -352,7 +353,8 @@ class Agent():
                     ' unique'  if e == Agent.EQUIP_UNIQUE else (
                     ' rush'    if e == Agent.EQUIP_RUSH else (
                     ' stealth' if e == Agent.EQUIP_STEALTH else (
-                    ' flash'   if e == Agent.EQUIP_FLASH else 'smoke' ))))
+                    ' flash'   if e == Agent.EQUIP_FLASH else (
+                    ' smoke'   if e == Agent.EQUIP_SMOKE else 'hidden' )))))
         retv += '\npos:'
         for p in self.position_history:
             retv += ' %s' % p
@@ -528,8 +530,8 @@ class Sim():
             n_moves_list = [[[start_pos]]]
             # num moves can depend on if the agent plays "adrenaline rush"
             max_num_moves = NUM_MOVES_PER_TURN
-            if agent.num_equip_possible(Agent.EQUIP_RUSH) > 0:
-                max_num_moves = NUM_MOVES_PER_TURN_RUSH
+            #if agent.num_equip_possible(Agent.EQUIP_RUSH) > 0:
+            #    max_num_moves = NUM_MOVES_PER_TURN_RUSH
             for l in range(1, max_num_moves+1):
                 # initialize the list for this sequence length
                 n_moves_list.append([])
@@ -578,13 +580,13 @@ class Sim():
 
     # ap is the location the agent was last seen (empty if not seen)
     # hp is the location of the observant hunter
-    # TODO: need to handle if bluejay's "holo decoy" was used
     def last_seen_obs(self, ap, hp):
         if self.fdo is not None:
             self.fdo.write('last_seen %s %s\n' % (str(ap), str(hp)))
         # TODO: need to consider if agent played "stealth field"
         new_list=[]
         los = self.board.hunter_los(hp)
+        # TODO: need to handle if bluejay's "holo decoy" was used
         if self.board.contains(ap):
             print('last seen from %s at %s' % (str(hp), str(ap)))
             # keep agents that passed through ap and didn't end in ap and weren't
@@ -751,6 +753,7 @@ class Sim():
                     break
         self.agent_list = new_list
 
+    # ap is the location of the agent two turns ago
     def postcog_obs(self, ap):
         if self.fdo is not None:
             self.fdo.write('postcog %s\n' % (ap))
@@ -778,12 +781,13 @@ class Sim():
         # only keep agents that were within 4 spaces of the grenade location
         #  at any point during their last turn
         for a in self.agent_list:
-            for p in a[-1]:
+            for p in a.get_turn():
                 if abs(p.row - gp.row) <= GRENADE_RANGE and abs(p.col - gp.col) <= GRENADE_RANGE:
                     new_list.append(a)
                     break
         self.agent_list = new_list
 
+    # TODO: log this with the agents
     def bluejay_obs(self, is_bluejay):
         if self.fdo is not None:
             self.fdo.write('bluejay %s' % ('True' if is_bluejay else 'False'))
