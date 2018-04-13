@@ -466,6 +466,8 @@ class Sim():
     def init_from_file(self):
         for l in self.fdi:
             t = l.split()
+            if len(t) == 0:
+                break
             if t[0] == 'propagate':
                 self.propagate()
             elif t[0] == 'spotted':
@@ -531,7 +533,10 @@ class Sim():
         unique_list=[]
         trimmed_agents=[]
         for agent in self.agent_list:
-            u = [agent.get_position(), agent.equip_list]
+            u = [agent.equip_list, agent.get_position()]
+            # need to consider two turns to allow post-cog to work
+            if len(agent.turn_history) > 1:
+                u.append(agent.get_position(-2))
             try:
                 unique_list.index(u)
             except:
@@ -807,7 +812,6 @@ class Sim():
         new_list=[]
         # only keep agents who were at ap two turns ago
         for a in self.agent_list:
-            print('%s vs %s' % (a.get_turn(-3)[-1], ap))
             if a.get_turn(-3)[-1] == ap:
                 new_list.append(a)
         self.agent_list = new_list
