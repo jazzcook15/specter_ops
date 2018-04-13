@@ -20,7 +20,7 @@ DTURN=(TURNS_ROW[1]-TURNS_ROW[0])/N_TURNS
 PROB_RECT_OFFSET=2
 
 NUM_MOVES_PER_TURN=4
-NUM_MOVES_PER_TURN_RUSH=6
+NUM_MOVES_PER_TURN_SURGE=6
 MOTION_DETECT_MOVES=3
 SNIFF_RANGE=4
 GRENADE_RANGE=4
@@ -320,11 +320,11 @@ class Board():
             print()
 
 
-# TODO: need a way to flip HIDDEN to RUSH or STEALTH
+# TODO: need a way to flip HIDDEN to SURGE or STEALTH
 class Agent():
     EQUIP_UNKNOWN=-1
     EQUIP_HIDDEN=0
-    EQUIP_RUSH=1
+    EQUIP_SURGE=1
     EQUIP_STEALTH=2
     EQUIP_FLASH=3
     EQUIP_SMOKE=4
@@ -345,7 +345,7 @@ class Agent():
         for e in self.equip_list:
             retv += ' unknown' if e == Agent.EQUIP_UNKNOWN else (
                     ' unique'  if e == Agent.EQUIP_UNIQUE else (
-                    ' rush'    if e == Agent.EQUIP_RUSH else (
+                    ' surge'   if e == Agent.EQUIP_SURGE else (
                     ' stealth' if e == Agent.EQUIP_STEALTH else (
                     ' flash'   if e == Agent.EQUIP_FLASH else (
                     ' smoke'   if e == Agent.EQUIP_SMOKE else 'hidden' )))))
@@ -378,7 +378,7 @@ class Agent():
     def num_equip(self,e=EQUIP_UNKNOWN):
         index = [i for i in range(len(self.equip_list)) if self.equip_list[i] == e]
         if e==Agent.EQUIP_HIDDEN:
-            index2 = [i for i in range(len(self.equip_list)) if self.equip_list[i] == Agent.EQUIP_RUSH]
+            index2 = [i for i in range(len(self.equip_list)) if self.equip_list[i] == Agent.EQUIP_SURGE]
             index.append(index2)
             index2 = [i for i in range(len(self.equip_list)) if self.equip_list[i] == Agent.EQUIP_STEALTH]
             index.append(index2)
@@ -539,10 +539,10 @@ class Sim():
             # we'll have a list for each possible move sequence length
             # length 0 consists of staying put
             n_moves_list = [[[start_pos]]]
-            # num moves can depend on if the agent plays "adrenaline rush"
+            # num moves can depend on if the agent plays "adrenal surge"
             max_num_moves = NUM_MOVES_PER_TURN
-            if self.equip_used == 1 and agent.num_equip_possible(Agent.EQUIP_RUSH) > 0:
-                max_num_moves = NUM_MOVES_PER_TURN_RUSH
+            if self.equip_used == 1 and agent.num_equip_possible(Agent.EQUIP_SURGE) > 0:
+                max_num_moves = NUM_MOVES_PER_TURN_SURGE
             for l in range(1, max_num_moves+1):
                 # initialize the list for this sequence length
                 n_moves_list.append([])
@@ -562,7 +562,7 @@ class Sim():
                     new_agent.clone(agent)
                     new_agent.add_turn(t)
                     if len(t) > NUM_MOVES_PER_TURN+1:
-                        new_agent.set_equip(Agent.EQUIP_RUSH)
+                        new_agent.set_equip(Agent.EQUIP_SURGE)
                     new_agents.append(new_agent)
         self.agent_list = new_agents
 
