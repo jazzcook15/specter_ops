@@ -600,9 +600,11 @@ class Sim():
                 except:
                     new_list.append(a)
                 else:
-                    # if the agent could have played "stealth field", keep them if they were
-                    # in the LOS but never closer than 3 spaces
-                    if agent.num_equip_possible(Agent.EQUIP_STEALTH) > 0:
+                    # if the agent played equipment that could have been "stealth field",
+                    #  keep them if they were in the LOS but never closer than 3 spaces
+                    # also, it's possible they just played "adrenal surge", in which case they
+                    #  can't have played "stealth field"
+                    if self.equip_used == 2 and a.num_equip_possible(Agent.EQUIP_STEALTH) > 0 and len(a.get_turn()) <= NUM_MOVES_PER_TURN+1:
                         close_pos = [p for p in a.get_turn() if p.dist(hp) <= STEALTH_RANGE]
                         if len(close_pos) == 0:
                             a.set_equip(Agent.EQUIP_STEALTH)
@@ -649,7 +651,8 @@ class Sim():
                     new_list.append(b)
         else:
             print('not seen crossing LOS of %s' % str(hp))
-            # keep agents that didn't cross LOS, or agents that could have used "stealth field"
+            # keep agents that didn't cross LOS, or agents that played equipment that could have
+            #  used "stealth field"
             for a in self.agent_list:
                 in_los=False
                 for p in a.get_turn():
@@ -662,7 +665,7 @@ class Sim():
                         break
                 if not in_los:
                     new_list.append(a)
-                elif agent.num_equip_possible(Agent.EQUIP_STEALTH) > 0:
+                elif self.equip_used == 2 and a.num_equip_possible(Agent.EQUIP_STEALTH) > 0:
                     # if the agent could have played "stealth field", keep them if they were
                     # never closer than 3 spaces
                     close_pos = [p for p in a.get_turn() if p.dist(hp) <= STEALTH_RANGE]
@@ -1276,20 +1279,20 @@ class MainWindow(tk.Frame):
         for i in self.inspect_path:
             self.canvas.delete(i)
         hp=BoardPosition.from_string(self.hunter_pos_entry_text.get())
-        los = sim.board.hunter_los(h)
+        los = self.sim.board.hunter_los(hp)
         for p in los:
             this_p=p.screen_pos()
             self.inspect_path.append(self.canvas.create_oval(this_p[1]-DCOL/2+PROB_RECT_OFFSET,
-                                                            this_p[0]-DROW/2+PROB_RECT_OFFSET,
-                                                            this_p[1]+DCOL/2-PROB_RECT_OFFSET,
-                                                            this_p[0]+DROW/2-PROB_RECT_OFFSET,
-                                                            outline='yellow'))
+                                                             this_p[0]-DROW/2+PROB_RECT_OFFSET,
+                                                             this_p[1]+DCOL/2-PROB_RECT_OFFSET,
+                                                             this_p[0]+DROW/2-PROB_RECT_OFFSET,
+                                                             outline='yellow'))
         this_p=hp.screen_pos()
         self.inspect_path.append(self.canvas.create_oval(this_p[1]-DCOL/2+PROB_RECT_OFFSET,
-                                                        this_p[0]-DROW/2+PROB_RECT_OFFSET,
-                                                        this_p[1]+DCOL/2-PROB_RECT_OFFSET,
-                                                        this_p[0]+DROW/2-PROB_RECT_OFFSET,
-                                                        outline='purple'))
+                                                         this_p[0]-DROW/2+PROB_RECT_OFFSET,
+                                                         this_p[1]+DCOL/2-PROB_RECT_OFFSET,
+                                                         this_p[0]+DROW/2-PROB_RECT_OFFSET,
+                                                         outline='purple'))
 
     def on_reset_click(self):
         self.sim = Sim()
