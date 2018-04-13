@@ -24,6 +24,7 @@ NUM_MOVES_PER_TURN_SURGE=6
 MOTION_DETECT_MOVES=3
 SNIFF_RANGE=4
 GRENADE_RANGE=4
+STEALTH_RANGE=2
 
 ROAD='.'
 PATH=' '
@@ -111,6 +112,11 @@ class BoardPosition():
     # return true if self is south of rhs
     def south_of(self,rhs):
         return self.row > rhs.row
+
+    # return the "distance" between two positions, which is the max of
+    #  the row and column differences
+    def dist(self,other):
+        return max([abs(self.row - other.row), abs(self.col - other.col)])
 
 
 class Board():
@@ -520,6 +526,8 @@ class Sim():
         # as long as all observations are processed, all remaining paths are equally likely
         # for simplicity we keep the history of the first agent to reach a given position with
         # a given set of equipment
+        # TODO: keep track of the "weight" of an agent, i.e. the number of equivalent paths
+        #  that were collapsed. this will help us better estimate the prob distribution
         unique_list=[]
         trimmed_agents=[]
         for agent in self.agent_list:
@@ -530,6 +538,7 @@ class Sim():
                 trimmed_agents.append(agent)
                 unique_list.append(u)
         print('trimmed %d -> %d' % (len(self.agent_list), len(trimmed_agents)))
+        # TODO: unique list is a good place to check for equipment that all agent particles have
 
         new_agents=[]
         # we're going to propagate every tracked agent to all the places they could go, each becoming a new agent
@@ -590,6 +599,14 @@ class Sim():
                     los.index(a.get_position())
                 except:
                     new_list.append(a)
+                else:
+                    # if the agent could have played "stealth field", keep them if they were
+                    # in the LOS but never closer than 3 spaces
+                    if agent.num_equip_possible(Agent.EQUIP_STEALTH) > 0:
+                        close_pos = [p for p in a.get_turn() if p.dist(hp) <= STEALTH_RANGE]
+                        if len(close_pos) == 0:
+                            a.set_equip(Agent.EQUIP_STEALTH)
+                            new_list.append(a)
         self.agent_list = new_list
 
     # ap is the location the agent was last seen (empty if not seen)
@@ -599,35 +616,40 @@ class Sim():
             self.fdo.write('last_seen %s %s\n' % (str(ap), str(hp)))
         new_list=[]
         los = self.board.hunter_los(hp)
-        # TODO: need to consider if agent played "stealth field"
-        # TODO: need to handle if bluejay's "holo decoy" was used
         if self.board.contains(ap):
             print('last seen from %s at %s' % (str(hp), str(ap)))
-            # keep agents that passed through ap and didn't end in ap and weren't
-            #  visible through a later LOS
             for a in self.agent_list:
+                #  keep agents that passed through ap and didn't end in ap and weren't visible
+                #  through a later LOS
                 idx = [i for i,v in enumerate(a.get_turn()[:-1]) if v == ap]
-                if len(idx) == 0:
-                    # ap isn't in agent's history, so they couldn't have been spotted
-                    continue
-                # now for the moves after where the agent passed through ap, make sure none
-                #  are in the hunter LOS
-                idx = idx[-1]
-                later_los=False
-                for p in a.get_turn()[idx+1:]:
-                    try:
-                        los.index(p)
-                    except:
-                        pass
-                    else:
-                        later_los = True
-                        break
-                if not later_los:
-                    new_list.append(a)
-
+                #  agent passed through ap so they definitely were spotted
+                if len(idx) > 0:
+                    # now for the moves after where the agent last passed through ap, make sure none
+                    #  are in the hunter LOS
+                    idx = idx[-1]
+                    later_los=False
+                    for p in a.get_turn()[idx+1:]:
+                        try:
+                            los.index(p)
+                        except:
+                            pass
+                        else:
+                            later_los = True
+                            break
+                    if not later_los:
+                        new_list.append(a)
+                # if the agent could be bluejay and has not played their unique ability card
+                #  then create a clone of this agent who has played "holo decoy" and keep them
+                #  anyway
+                # TODO: remember that last seen will positively identify the agent!
+                if self.agent_id != self.AGENT_OTHER and a.num_equip_possible(Agent.EQUIP_UNIQUE) > 0:
+                    b = Agent()
+                    b.clone(a)
+                    b.set_equip(Agent.EQUIP_UNIQUE)
+                    new_list.append(b)
         else:
             print('not seen crossing LOS of %s' % str(hp))
-            # keep agents that didn't cross LOS
+            # keep agents that didn't cross LOS, or agents that could have used "stealth field"
             for a in self.agent_list:
                 in_los=False
                 for p in a.get_turn():
@@ -640,6 +662,13 @@ class Sim():
                         break
                 if not in_los:
                     new_list.append(a)
+                elif agent.num_equip_possible(Agent.EQUIP_STEALTH) > 0:
+                    # if the agent could have played "stealth field", keep them if they were
+                    # never closer than 3 spaces
+                    close_pos = [p for p in a.get_turn() if p.dist(hp) <= STEALTH_RANGE]
+                    if len(close_pos) == 0:
+                        a.set_equip(Agent.EQUIP_STEALTH)
+                        new_list.append(a)
         self.agent_list = new_list
 
     # mp is the location of the completed mission objective
@@ -819,8 +848,9 @@ class Sim():
         if self.fdo is not None:
             self.fdo.write('hidden\n')
         print('hidden equipment used')
+        # note that some hidden equipment was used
         self.equip_used = 1
-        # keep agents that have an unused equipment slot and note the hidden equipment
+        # keep agents that have an unused equipment slot and note in the agent the hidden equipment
         new_list=[]
         for a in self.agent_list:
             if a.num_equip_possible(Agent.EQUIP_HIDDEN) > 0:
@@ -1024,7 +1054,7 @@ class MainWindow(tk.Frame):
             return self.tooltip_text(text)
         def inspect_ttp(event, self=self, text='Plot the route of an agent, indexed by the number in the entry box.'):
             return self.tooltip_text(text)
-        def bluejay_button_ttp(event, self=self, text='If the agent is positively identified, click the true/false button depending on if the agent is Bluejay or not.'):
+        def bluejay_button_ttp(event, self=self, text='If the agent is positively identified, click the true/false button depending on if the agent is Bluejay or not. Do this before providing spotted or last seen observations.'):
             return self.tooltip_text(text)
         def spotted_button_ttp(event, self=self, text='Enter the location of the hunter in the hunter pos entry box, and enter the location of the agent in the agent pos entry box. Or, if the hunter did not spot the agent, leave the agent position blank. If the agent is not spotted, you can enter multiple hunter locations, separated by spaces.'):
             return self.tooltip_text(text)
