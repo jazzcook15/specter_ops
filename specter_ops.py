@@ -337,6 +337,7 @@ class Agent():
     EQUIP_UNIQUE=5
 
     def  __init__(self,equip_slots=5):
+        self.weight = 1 # number of possible paths this agent represent
         self.equip_list = [self.EQUIP_UNKNOWN for i in range(equip_slots)] # INVARIANT: list[i] >= list[j] for i <= j
         self.position_history=[BoardPosition.from_string('N1')] # history[i] is where the agent ended turn i
         self.turn_history=[[BoardPosition.from_string('N1')]] # history[i] is the list of positions for turn i
@@ -367,6 +368,7 @@ class Agent():
         return retv
 
     def clone(self,other):
+        self.weight = other.weight
         self.equip_list = [e for e in other.equip_list]
         self.position_history = [BoardPosition.clone(p) for p in other.position_history]
         self.turn_history = [[BoardPosition.clone(p) for p in h] for h in other.turn_history]
@@ -421,6 +423,10 @@ class Agent():
             # number of slots is smaller of total open and open of this equip type
             return min(max_num - cnt, self.num_equip(Agent.EQUIP_UNKNOWN))
 
+    def unique(self):
+        # need to consider two turns to allow post-cog to work
+        return [self.equip_list, self.position_history[-2:]]
+
 
 def print_moves(new_moves):
     for idx,p in enumerate(new_moves):
@@ -446,6 +452,7 @@ class Sim():
 
     def __init__(self, in_file=None, out_file=None):
         self.board = Board()
+        self.prop_count = 0
         self.agent_id = self.AGENT_UNKNOWN
         self.equip_used = 0 # 0: none, 1: apply this propagation, 2: apply during obs and cancel at next prop
         # self.agent_list[i] is the turn history for agent i
@@ -502,15 +509,16 @@ class Sim():
                 self.__equip_unique_obs()
             elif t[0] == 'hidden':
                 self.__equip_hidden_obs()
-            elif t[0] == 'bluejay':
-                self.bluejay_obs(t[1] == 'True')
+            elif t[0] == 'identity':
+                self.identity_obs(self.AGENT_BLUEJAY if t[1] == 'bluejay' else self.AGENT_OTHER)
             else:
                 print('unknown command %s' % t[0])
                 break
 
     def propagate(self):
+        self.prop_count += 1
         if self.fdo is not None:
-            self.fdo.write('propagate\n')
+            self.fdo.write('propagate %d\n' % self.prop_count)
 
         # first, clean up any smoke grenades from last turn
         if self.board.smokep is not None:
@@ -528,20 +536,22 @@ class Sim():
         # as long as all observations are processed, all remaining paths are equally likely
         # for simplicity we keep the history of the first agent to reach a given position with
         # a given set of equipment
-        # TODO: keep track of the "weight" of an agent, i.e. the number of equivalent paths
-        #  that were collapsed. this will help us better estimate the prob distribution
         unique_list=[]
         trimmed_agents=[]
         for agent in self.agent_list:
-            u = [agent.equip_list, agent.get_position()]
-            # need to consider two turns to allow post-cog to work
-            if len(agent.turn_history) > 1:
-                u.append(agent.get_position(-2))
+            u = agent.unique()
             try:
                 unique_list.index(u)
             except:
+                # we don't already have this unique list, so add it and the agent
                 trimmed_agents.append(agent)
                 unique_list.append(u)
+            else:
+                # we've already got it, so increase the weight of the representative agent
+                a = [i for i in trimmed_agents if u == i.unique()]
+                if len(a) > 1:
+                    print('problem!')
+                a[0].weight += 1
         print('trimmed %d -> %d' % (len(self.agent_list), len(trimmed_agents)))
         # TODO: unique list is a good place to check for equipment that all agent particles have
 
@@ -873,15 +883,11 @@ class Sim():
         else:
             self.__equip_hidden_obs()
 
-    def bluejay_obs(self, is_bluejay):
+    def identity_obs(self, ident):
         if self.fdo is not None:
-            self.fdo.write('bluejay %s\n' % ('True' if is_bluejay else 'False'))
-        if is_bluejay:
-            print('id: bluejay')
-            self.agent_id = self.AGENT_BLUEJAY
-        else:
-            print('id: not bluejay')
-            self.agent_id = self.AGENT_OTHER
+            self.fdo.write('identity %s\n' % ('bluejay' if ident ==self.AGENT_BLUEJAY else 'other'))
+        print('id: %s' % ('bluejay' if ident ==self.AGENT_BLUEJAY else 'other'))
+        self.agent_id = ident
 
 
 class MainWindow(tk.Frame):
@@ -1162,10 +1168,14 @@ class MainWindow(tk.Frame):
                                                              fill='',outline='red',width=3))
         prob_board = Board(init_empty = True)
         num_agent = len(self.sim.agent_list)
+        all_weights = [a.weight for a in self.sim.agent_list]
+        total_weight = sum(all_weights) * 1.0
+        # TODO: maybe print this after each propagate/update step
+        print('total particles: %d\taverage weight: %.1f' % (num_agent, total_weight / num_agent))
         for agent in self.sim.agent_list:
             pos = agent.get_position()
             tmp = prob_board.get(pos)
-            prob_board.set(pos, tmp + 1.0 / num_agent)
+            prob_board.set(pos, tmp + agent.weight / total_weight)
         for r in range(0,N_ROWS):
             for c in range(0,N_COLS):
                 p = prob_board.board_cells[r][c]
@@ -1276,7 +1286,7 @@ class MainWindow(tk.Frame):
         self.draw_probability()
 
     def on_bluejay_click(self, res):
-        self.sim.bluejay_obs(res)
+        self.sim.identity_obs(Sim.AGENT_BLUEJAY if res else Sim.AGENT_OTHER)
         self.draw_probability()
 
     def on_los_test_click(self):
