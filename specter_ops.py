@@ -80,6 +80,20 @@ class BoardPosition():
     def __eq__(self,rhs):
         return self.row == rhs.row and self.col == rhs.col
 
+    # note: this ordering isn't correct in the strictest sense, but for positions in the same
+    #  row/col (the intended use case), it works fine
+    def __le__(self,rhs):
+        return (self.row <= rhs.row and self.col <= rhs.col)
+
+    def __lt__(self,rhs):
+        return self.__le__(rhs) and not self.__eq__(rhs)
+
+    def __ge__(self,rhs):
+        return (self.row >= rhs.row and self.col >= rhs.col)
+
+    def __gt__(self,rhs):
+        return self.__ge__(rhs) and not self.__eq__(rhs)
+
     def set(self, index):
         r,c,d = BoardPosition.str2rcd(index)
         self.row = r
@@ -141,23 +155,28 @@ class Board():
         self.board_cells[bp.row][bp.col] = val
 
     def place_smoke(self, bp):
+        # should only occur if testing
+        if self.smokep is not None:
+            self.clear_smoke()
         self.smokep = bp
-        adj = self.adjacent(bp, only_passable=True)
+        adj = self.adjacent(self.smokep, only_passable=True)
         for p in adj:
-            self.set(bp, SMOKE_GRENADE)
+            self.set(p, SMOKE_GRENADE)
 
     def clear_smoke(self):
-        adj = self.adjacent(bp, only_passable=True)
+        adj = self.adjacent(self.smokep, only_passable=True)
+        print(self.smokep)
         for p in adj:
-            self.set(bp, self.backup[p.row][p.col])
+            print(p)
+            self.set(p, self.backup[p.row][p.col])
         self.smokep = None
 
     def contains(self, bp):
         return bp.col >=0 and bp.col < N_COLS and bp.row >= 0 and bp.row < N_ROWS
 
     def is_road(self, bp):
-        cell = self.get(bp)
-        return cell == ROAD
+        # check backup board because main might have been overwritten with SMOKE
+        return self.backup[bp.row][bp.col] == ROAD
 
     def is_passable(self, bp):
         cell = self.get(bp)
@@ -254,69 +273,98 @@ class Board():
                 for r in range(bp.row+1, road_south_terminus+1):
                     rl['S'].append(BoardPosition(r, bp.col))
                     rl['S'].append(BoardPosition(r, ns_other_col))
+        # now, re-order the roads so they start at bp and move outward, first starting with
+        #  the same row/col, then moving to the adjacent row/col
+        rl['E'] = [sorted([p for p in rl['E'] if p.row == bp.row]),
+                   sorted([p for p in rl['E'] if p.row != bp.row])]
+        rl['W'] = [sorted([p for p in rl['W'] if p.row == bp.row], reverse=True),
+                   sorted([p for p in rl['W'] if p.row != bp.row], reverse=True)]
+        rl['S'] = [sorted([p for p in rl['S'] if p.col == bp.col]),
+                   sorted([p for p in rl['S'] if p.col != bp.col])]
+        rl['N'] = [sorted([p for p in rl['N'] if p.col == bp.col], reverse=True),
+                   sorted([p for p in rl['N'] if p.col != bp.col], reverse=True)]
         return rl
 
     def hunter_los(self, hp):
-        los=[hp]
+        los = [hp]
+        if self.is_transparent(hp):
+            all_roads = self.roads_connected_to(hp)
 
-        all_roads = self.roads_connected_to(hp)
+            # hunter is looking E
+            if hp.d == 0 or hp.d == -1:
+                # accumulate LOS along this row
+                for c in range(hp.col+1, N_COLS):
+                    bp = BoardPosition(hp.row, c)
+                    if self.is_transparent(bp):
+                        los.append(bp)
+                    else:
+                        break
+                if self.is_road(hp):
+                    for r in all_roads['E']:
+                        for p in r:
+                            if self.is_transparent(p):
+                                los.append(p)
+                            else:
+                                # road positions are ordered outward from hp, so stop
+                                # processing when visibility ends
+                                break
 
-        # hunter is looking E
-        if hp.d == 0 or hp.d == -1:
-            # accumulate LOS along this row
-            for c in range(hp.col+1, N_COLS):
-                bp = BoardPosition(hp.row, c)
-                if self.is_transparent(bp):
-                    los.append(bp)
-                else:
-                    break
-            if self.is_road(hp):
-                for r in all_roads['E']:
-                    if r.east_of(hp):
-                        los.append(r)
+            # hunter is looking N
+            if hp.d == 1 or hp.d == -1:
+                # accumulate LOS along this col
+                for r in range(hp.row-1, -1, -1):
+                    bp = BoardPosition(r, hp.col)
+                    if self.is_transparent(bp):
+                        los.append(bp)
+                    else:
+                        break
+                if self.is_road(hp):
+                    for r in all_roads['N']:
+                        for p in r:
+                            if self.is_transparent(p):
+                                los.append(p)
+                            else:
+                                # road positions are ordered outward from hp, so stop
+                                # processing when visibility ends
+                                break
 
-        # hunter is looking N
-        if hp.d == 1 or hp.d == -1:
-            # accumulate LOS along this col
-            for r in range(hp.row-1, -1, -1):
-                bp = BoardPosition(r, hp.col)
-                if self.is_transparent(bp):
-                    los.append(bp)
-                else:
-                    break
-            if self.is_road(hp):
-                for r in all_roads['N']:
-                    if r.north_of(hp):
-                        los.append(r)
+            # hunter is looking W
+            if hp.d == 2 or hp.d == -1:
+                # accumulate LOS along this row
+                for c in range(hp.col-1, -1, -1):
+                    bp = BoardPosition(hp.row, c)
+                    if self.is_transparent(bp):
+                        los.append(bp)
+                    else:
+                        break
+                if self.is_road(hp):
+                    for r in all_roads['W']:
+                        for p in r:
+                            if self.is_transparent(p):
+                                los.append(p)
+                            else:
+                                # road positions are ordered outward from hp, so stop
+                                # processing when visibility ends
+                                break
 
-
-        # hunter is looking W
-        if hp.d == 2 or hp.d == -1:
-            # accumulate LOS along this row
-            for c in range(hp.col-1, -1, -1):
-                bp = BoardPosition(hp.row, c)
-                if self.is_transparent(bp):
-                    los.append(bp)
-                else:
-                    break
-            if self.is_road(hp):
-                for r in all_roads['W']:
-                    if r.west_of(hp):
-                        los.append(r)
-
-        # hunter is looking S
-        if hp.d == 3 or hp.d == -1:
-            # accumulate LOS along this col
-            for r in range(hp.row+1, N_ROWS):
-                bp = BoardPosition(r, hp.col)
-                if self.is_transparent(bp):
-                    los.append(bp)
-                else:
-                    break
-            if self.is_road(hp):
-                for r in all_roads['S']:
-                    if r.south_of(hp):
-                        los.append(r)
+            # hunter is looking S
+            if hp.d == 3 or hp.d == -1:
+                # accumulate LOS along this col
+                for r in range(hp.row+1, N_ROWS):
+                    bp = BoardPosition(r, hp.col)
+                    if self.is_transparent(bp):
+                        los.append(bp)
+                    else:
+                        break
+                if self.is_road(hp):
+                    for r in all_roads['S']:
+                        for p in r:
+                            if self.is_transparent(p):
+                                los.append(p)
+                            else:
+                                # road positions are ordered outward from hp, so stop
+                                # processing when visibility ends
+                                break
         return los
 
     def print(self):
@@ -1171,7 +1219,7 @@ class MainWindow(tk.Frame):
         all_weights = [a.weight for a in self.sim.agent_list]
         total_weight = sum(all_weights) * 1.0
         # TODO: maybe print this after each propagate/update step
-        print('total particles: %d\taverage weight: %.1f' % (num_agent, total_weight / num_agent))
+        print('total particles: %d\taverage weight: %.1f' % (num_agent, total_weight / num_agent if num_agent > 0 else 0))
         for agent in self.sim.agent_list:
             pos = agent.get_position()
             tmp = prob_board.get(pos)
