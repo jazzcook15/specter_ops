@@ -165,9 +165,7 @@ class Board():
 
     def clear_smoke(self):
         adj = self.adjacent(self.smokep, only_passable=True)
-        print(self.smokep)
         for p in adj:
-            print(p)
             self.set(p, self.backup[p.row][p.col])
         self.smokep = None
 
@@ -668,7 +666,7 @@ class Sim():
                     # also, it's possible they just played "adrenal surge", in which case they
                     #  can't have played "stealth field"
                     if self.equip_used == 2 and a.num_equip_possible(Agent.EQUIP_STEALTH) > 0 and len(a.get_turn()) <= NUM_MOVES_PER_TURN+1:
-                        close_pos = [p for p in a.get_turn() if p.dist(hp) <= STEALTH_RANGE]
+                        close_pos = [p for p in a.get_turn() if (p in los and p.dist(hp) <= STEALTH_RANGE)]
                         if len(close_pos) == 0:
                             a.set_equip(Agent.EQUIP_STEALTH)
                             new_list.append(a)
@@ -728,10 +726,12 @@ class Sim():
                         break
                 if not in_los:
                     new_list.append(a)
-                elif self.equip_used == 2 and a.num_equip_possible(Agent.EQUIP_STEALTH) > 0:
-                    # if the agent could have played "stealth field", keep them if they were
-                    # never closer than 3 spaces
-                    close_pos = [p for p in a.get_turn() if p.dist(hp) <= STEALTH_RANGE]
+                elif self.equip_used == 2 and a.num_equip_possible(Agent.EQUIP_STEALTH) > 0 and len(a.get_turn()) <= NUM_MOVES_PER_TURN+1:
+                    # if the agent played equipment that could have been "stealth field",
+                    #  keep them if they were in the LOS but never closer than 3 spaces
+                    # also, it's possible they just played "adrenal surge", in which case they
+                    #  can't have played "stealth field"
+                    close_pos = [p for p in a.get_turn() if (p in los and p.dist(hp) <= STEALTH_RANGE)]
                     if len(close_pos) == 0:
                         a.set_equip(Agent.EQUIP_STEALTH)
                         new_list.append(a)
