@@ -1,0 +1,106 @@
+mission obj at 1-5 (F11), 2-2 (C28), 3-1 (N31), and 4-4 (V18)
+agent is cobra with unique, 2xstealth, surge, flash
+hunters are beast, prophet, puppet
+
+checking:
+spotted +/-
+last seen +/-
+motion +/-
+beast sniff +.-
+bluejay -
+pre-cog
+post-cog
+mission obj
+flash/unique/hidden (stealth, surge)
+
+T1
+agent moves N1-O2-O3-P4-Q5
+no last seen/spotted
+hunters drive L16
+prophet exits to K15
+hunters drive to N14
+beast exits to O13
+hunters drive to O15***
+
+T2
+agent moves Q5-Q6-Q7-R8-S9
+no last seen/spotted
+puppet uses motion - NE
+puppet exits to O14
+prophet moves to N12
+beast moves to r11 and sniffs true
+
+T3
+agent moves S9-T9-U10-U11
+no last seen/spotted
+puppet moves to s13
+prophet moves to Q10
+beast moves to u9 and spots at u11 - not bluejay
+
+T4
+places flash bang at u13
+agent moves u11-u10-t9-s8-r8
+no last seen/spotted
+prophet moves to r13
+puppet moves to t15
+beast moves to v14
+
+T5
+agent moves R8-Q9-P10-O10-N10
+no last seen/spotted
+puppet moves to r15
+beast moves to u17 and sniffs false
+prophet moves to u12
+
+T6
+agent moves N10-M10-L11
+no last seen/spotted
+beast moves to R19 and sniffs false
+puppet moves to n15
+prophet moves to v9
+
+T7
+agent moves L11-K10-J10-I11-H11
+no last seen/spotted
+puppet uses motion - nw
+beast moves to m15
+prophet moves to r10
+
+T8
+agent moves H11-G12-F12, announces pre-cog
+prophet moves to n10
+beast moves to I13
+puppet uses motion - none
+
+T9
+agent achieves 1-5 (F11)
+agent moves F12-E13-D14-D15-c16-D17 with surge [1]
+last seen by n15 at c16
+beast moves to f18, not spotted
+prophet moves to k14
+puppet remotes car to k15***
+
+T10
+agent flashes at f18 [2]
+agent moves d17-d18-e19-f20-g21
+no last seen at n15
+prophet moves to h18
+puppet remotes car to k23***
+beast moves to d20 and sniffs true
+
+T11
+agent stealth field [3]
+agent moves g21-g22-g23-g24-g25
+puppet uses motion - sw
+beast moves to g24 - spots at g25
+prophet moves to j22
+
+T12
+agent moves g25-f26-e26-d27-c27, pre-cog
+puppet moves to k18
+prophet moves to h26
+beast moves to d26
+
+T13
+agent achieves 2-2 (C28)
+agent moves c27-b28-c29-c30-d31

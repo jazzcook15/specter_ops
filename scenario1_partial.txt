@@ -1,0 +1,71 @@
+propagate
+spotted ?? O15
+propagate
+last_seen ?? O15
+motion O15 NE
+sniffed R11 True
+propagate
+last_seen ?? N12
+spotted ?? R11
+spotted ?? Q10
+spotted U11 U9
+identity other
+propagate
+flash U13
+last_seen ?? Q10
+spotted ?? R13
+spotted ?? T15
+spotted ?? V14
+spotted ?? U11
+spotted ?? S13
+propagate
+last_seen ?? R13
+last_seen ?? T15
+last_seen ?? V14
+spotted ?? R15
+sniffed U17 False
+spotted ?? U17
+spotted ?? U12
+propagate
+last_seen ?? R15
+last_seen ?? U17
+last_seen ?? U12
+spotted ?? R19
+sniffed R19 False
+spotted ?? N15
+spotted ?? V9
+propagate
+last_seen ?? N15
+last_seen ?? R19
+last_seen ?? V9
+motion O15 NW
+spotted ?? R10
+propagate
+precog
+last_seen ?? R10
+last_seen ?? M15
+last_seen ?? N15
+spotted ?? I13
+motion N15 none
+hidden
+propagate
+mission F11
+last_seen C16 N15
+spotted ?? E18
+propagate
+flash F18
+last_seen ?? N15
+spotted ?? H18
+spotted ?? D20
+sniffed D20 True
+hidden
+propagate
+last_seen ?? K23
+last_seen ?? D20
+last_seen ?? H18
+motion K23 SW
+spotted G25 G24
+propagate
+precog
+last_seen G25 G24
+spotted ?? H26

@@ -496,6 +496,16 @@ class Sim():
     AGENT_OTHER=0
     AGENT_BLUEJAY=1
 
+    OBS_SPOTTED=0
+    OBS_LAST_SEEN=1
+    OBS_MISSION=2
+    OBS_MOTION=3
+    OBS_SNIFFED=4
+    OBS_PRECOG=5
+    OBS_POSTCOG=6
+    OBS_EQUIP=7
+    OBS_IDENTITY=8
+
     def __init__(self, in_file=None, out_file=None):
         self.board = Board()
         self.prop_count = 0
@@ -638,6 +648,30 @@ class Sim():
 
         if self.equip_used == 1:
             self.equip_used = 2
+
+        num_agent = len(self.agent_list)
+        total_weight = sum([a.weight for a in self.agent_list]) * 1.0
+        print('total particles: %d\taverage weight: %.1f' % (num_agent, total_weight / num_agent if num_agent > 0 else 0))
+
+    def update(self, data):
+        if data[0] == self.OBS_SPOTTED:
+            self.spotted_obs(data[1], data[2])
+        elif data[0] == self.OBS_LAST_SEEN:
+            self.last_seen_obs(data[1], data[2])
+        elif data[0] == self.OBS_MISSION:
+            self.mission_obs(data[1])
+        elif data[0] == self.OBS_MOTION:
+            self.motion_obs(data[1], data[2])
+        elif data[0] == self.OBS_SNIFFED:
+            self.sniffed_obs(data[1], data[2])
+        elif data[0] == self.OBS_PRECOG:
+            self.precog_obs()
+        elif data[0] == self.OBS_POSTCOG:
+            self.postcog_obs(data[1])
+        elif data[0] == self.OBS_EQUIP:
+            self.equip_obs(data[1], data[2])
+        elif data[0] == self.OBS_IDENTITY:
+            self.identity_obs(data[1])
 
     # ap is the location the agent was spotted (empty if not spotted)
     # hp is the location of the observant hunter
@@ -1216,10 +1250,7 @@ class MainWindow(tk.Frame):
                                                              fill='',outline='red',width=3))
         prob_board = Board(init_empty = True)
         num_agent = len(self.sim.agent_list)
-        all_weights = [a.weight for a in self.sim.agent_list]
-        total_weight = sum(all_weights) * 1.0
-        # TODO: maybe print this after each propagate/update step
-        print('total particles: %d\taverage weight: %.1f' % (num_agent, total_weight / num_agent if num_agent > 0 else 0))
+        total_weight = sum([a.weight for a in self.sim.agent_list]) * 1.0
         for agent in self.sim.agent_list:
             pos = agent.get_position()
             tmp = prob_board.get(pos)

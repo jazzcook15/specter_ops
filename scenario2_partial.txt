@@ -1,0 +1,88 @@
+propagate 1
+spotted ?? O15
+propagate 2
+last_seen ?? O15
+spotted ?? O8
+propagate 3
+last_seen ?? O8
+last_seen ?? G11
+last_seen ?? N12
+motion O8 none
+sniffed H8 True
+propagate 4
+last_seen ?? H8
+last_seen ?? N8W
+last_seen ?? O8
+motion O8 SW
+spotted ?? G11
+sniffed G11 True
+spotted ?? L10
+propagate 5
+last_seen ?? L10
+last_seen ?? O8
+last_seen ?? G11
+spotted ?? H14
+sniffed H14 True
+spotted ?? K16
+identity bluejay
+propagate 6
+last_seen L16 K16
+spotted ?? M17
+motion K16 SW
+spotted ?? K16
+spotted ?? J21
+propagate 7
+last_seen ?? K16
+last_seen ?? M17
+last_seen ?? J21
+spotted ?? G23
+postcog G18
+spotted ?? H18
+propagate 8
+precog
+last_seen ?? K16
+last_seen ?? G23
+last_seen ?? H18
+spotted ?? E18
+sniffed E18 False
+spotted ?? F26
+propagate 9
+mission B30
+last_seen ?? E18
+last_seen ?? K24
+last_seen ?? F26
+spotted ?? D23
+propagate 10
+last_seen ?? K25
+last_seen ?? J24
+last_seen ?? D23
+spotted ?? D26
+sniffed D26 True
+postcog C30
+propagate 11
+flash D24
+motion K24 NW
+spotted B21 B23
+propagate 12
+smoke D20
+precog
+last_seen B21 B23
+spotted ?? A20
+sniffed A20 True
+motion K24 NW
+propagate 13
+mission C17
+last_seen ?? A20
+last_seen ?? K24
+spotted ?? K15
+spotted ?? D18
+sniffed D18 False
+hidden
+propagate 14
+last_seen ?? K21
+last_seen ?? D18
+last_seen ?? K15
+motion K15 SE
+spotted ?? L16
+spotted ?? M21
+spotted ?? I18

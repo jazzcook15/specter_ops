@@ -1,0 +1,139 @@
+mission obj at 1-2 (c17), 2-1 (b30), 3-6 (v30), and 4-2 (r18)
+agent is bluejay with unique, stealth, surge, smoke, flash
+hunters are beast, prophet, gun
+
+checking:
+spotted +/-
+last seen +/-
+motion +/-
+beast sniff +/-
+bluejay +
+pre-cog
+post-cog
+mission obj (2 away)
+flash/unique/hidden (stealth, surge)
+holo decoy
+
+T1
+agent moves n1-n2-n3-m4-l5
+prophet drives to l16
+beast exits at k15
+prophet drives to o15 - not spotted
+gun exits at n15
+
+T2
+agent moves l5-k6-k7-k8-j9
+not seen from o15
+gun moves to n12 - not spotted
+prophet drives to to o8 - not spotted
+beast moves to g11 - not spotted
+
+T3
+agent moves j9-k10-l11
+not seen from g11
+not seen from n12
+not seen from o8
+prophet uses motion - none
+beast moves to h8 - not spotted - and sniffs - close
+gun moves to n8 - not spotted - and looks west
+
+T4
+agent moves l11-l12-k13-k14-j15
+not seen from n8w
+not seen from o8
+not seen from h8
+prohpet uses motion - sw
+beast moves to g11 - not spotted - and sniffs - close
+gun moves to l10 - not spotted
+
+T5
+agent moves j15-i16-h17-g18
+not seen from l10
+not seen from o8
+not seen from g11
+beast moves to h14 - not spotted - and sniffs - close
+prophet drives to n10
+gun enters car
+prophet drives to k16 - not spotted
+gun exits to j17
+
+T6
+agent moves to h19, plays holo decoy at l16, moves h20-g21-g22
+last seen by k16 at l16
+beast moves to m17 - not spotted
+prophet uses motion - sw - not spotted at k16
+gun moves to j21 - not spotted
+
+T7
+agent moves g22-f23-e24-d25-e26
+not seen from m17
+not seen from j21
+not seen from k16
+gun moves to g23 - not spotted
+prophet uses post-cog - g18
+beast moves to h18 - not spotted
+
+T8
+agent moves e26-d27-d28-c29-c30, announces pre-cog
+not seen from g23
+not seen from k16
+not seen from h18
+beast moves to e18 - not spotted - and sniffs false
+prophet drives to k24
+gun moves to f26 - not spotted
+
+T9
+agent achieves 2-1 (B30)
+agent moves C30-b29-b28-b27-a26
+not seen from e18
+not seen from k24
+not seen from f26
+gun moves to j24
+beast moves to d23 - not spotted
+
+T10
+agent moves a26-a25
+not seen from j24
+not seen from k24
+not seen from d23
+beast moves to d26 - not spotted - and sniffs true
+prophet post-cog c30
+
+T11
+agent plays flash bang d24
+agent moves a25-a24-a23-b22-b21
+prophet uses motion at k24 - nw
+beast moves to b23 - spotted at b21
+
+T12
+agent plays smoke grenade d20
+agent moves b21-c20-d20-e19, announces pre-cog
+last seen from b23 at b21
+beast moves to a20 - not spotted - and sniffs true
+prophet uses motion at k24 - nw
+
+T13
+agent achieves 1-2 (c17)
+agent moves e19-f18-g18-h19-i19
+not seen from a20
+not seen from j24
+not seen from k24
+prophet drives to k15 - not seen
+gun moves to k21
+beast moves to d18 - not spotted - sniffs false
+
+T14
+agent plays stealth field
+agent moves i19-j18-k18-l19
+not seen from k15
+not seen from d18
+not seen from k21
+prophet uses compass - SE
+prophet exits to l16 - not seen
+gun moves to m21 - not seen
+beast moves to i19 - not seen
+
+T15
+agent moves l19-m18-n18-o17-p17
+precog
+last seen from m21 at m18

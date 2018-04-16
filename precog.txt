@@ -1,0 +1,13 @@
+propagate
+spotted ?? N15
+propagate
+last_seen ?? O15
+spotted ?? O15
+motion O15 NW
+spotted ?? L11
+spotted ?? G10
+propagate
+last_seen ?? G10
+last_seen ?? L10
+last_seen ?? O15
+motion O15 NW
